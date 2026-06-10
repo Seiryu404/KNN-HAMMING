@@ -1,61 +1,70 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
 from sklearn.model_selection import train_test_split
-from sklearn.neighbors import KNeighborsClassifier
 from sklearn.metrics import accuracy_score
 
 print("PREDIKSI RISIKO PUTUS SEKOLAH - KNN HAMMING")
 
-df = pd.read_csv("student-mat.csv", sep=';')
-print(f"\nData dimuat: {len(df)} siswa")
+df_mat = pd.read_csv("student-mat.csv", sep=';')
+df_por = pd.read_csv("student-por.csv", sep=';')
+df = pd.concat([df_mat, df_por], ignore_index=True)
+
+print(f"Data dimuat: {len(df)} siswa")
 
 df['risiko'] = df['G3'].apply(
     lambda x: "TINGGI" if x < 10 else ("SEDANG" if x < 15 else "RENDAH")
 )
 
-print(f"\nRisiko:")
-print(df['risiko'].value_counts().to_string())
+print(f"Risiko TINGGI: {(df['risiko'] == 'TINGGI').sum()}")
+print(f"Risiko SEDANG: {(df['risiko'] == 'SEDANG').sum()}")
+print(f"Risiko RENDAH: {(df['risiko'] == 'RENDAH').sum()}")
 
-df_encoded = df.copy()
+fitur = ['age', 'studytime', 'failures', 'absences', 'G1', 'G2']
+X = df[fitur]
+y = df['risiko']
 
-for col in df_encoded.columns:
-    if df_encoded[col].dtype == 'object' and col not in ['risiko']:
-        enc = LabelEncoder()
-        df_encoded[col] = enc.fit_transform(df_encoded[col].astype(str))
-
-
-df_encoded = df_encoded.drop(['G1', 'G2', 'G3'], axis=1)
-
-print(f"\ndata siap: {df_encoded.shape[1]-1} fitur")
-
-X = df_encoded.drop('risiko', axis=1)
-for col in X.columns:
-    X[col] = pd.to_numeric(X[col], errors='coerce').fillna(0).astype(int)
-    
-y = df_encoded['risiko']
+print(f"Fitur: {X.shape[1]}")
 
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X, y, test_size=0.2, random_state=42, stratify=y
 )
 
-print(f"\nTraining: {len(X_train)} siswa | Testing: {len(X_test)} siswa")
+print(f"Training: {len(X_train)} | Testing: {len(X_test)}")
 
-model = KNeighborsClassifier(n_neighbors=5, metric='hamming')
-model.fit(X_train, y_train)
+# rumus menghitung Hamming
+def hamming_distance(a, b):
+    return sum(x != y for x, y in zip(a, b)) / len(a)
 
-print("\nModel KNN (K=5) dilatih")
+def knn_hamming_predict(X_train, y_train, X_test, k=5):
+    prediksi = []
+    if hasattr(X_test, 'values'):
+        X_test = X_test.values
+    for test_point in X_test:
+        jarak = []
+        for train_point in X_train.values:
+            d = hamming_distance(test_point, train_point)
+            jarak.append(d)
 
-y_pred = model.predict(X_test)
+        tetangga = sorted(range(len(jarak)), key=lambda i: jarak[i])[:k]
 
-akurasi = accuracy_score(y_test, y_pred)
-print(f"\nAKURASI: {akurasi:.1%}")
+        label_tetangga = [y_train.iloc[i] for i in tetangga]
 
-y_semua = model.predict(X)
+        hasil = max(set(label_tetangga), key=label_tetangga.count)
+        prediksi.append(hasil)
 
-print(f"\nHASIL IDENTIFIKASI ({len(df)} siswa):")
+    return prediksi
+
+print("Model KNN (K=5) dilatih")
+
+prediksi = knn_hamming_predict(X_train, y_train, X_test, k=5)
+
+akurasi = accuracy_score(y_test, prediksi)
+print(f"Akurasi: {round(akurasi*100, 2)}%")
+
+semua = knn_hamming_predict(X_train, y_train, X, k=5)
+
 for risiko in ['TINGGI', 'SEDANG', 'RENDAH']:
-    jumlah = (y_semua == risiko).sum()
-    persen = 100 * jumlah / len(df)
-    print(f"   Risiko {risiko}: {jumlah} siswa ({persen:.1f}%)")
+    jumlah = sum(1 for s in semua if s == risiko)
+    persen = round(jumlah / len(df) * 100, 1)
+    print(f"Risiko {risiko}: {jumlah} siswa ({persen}%)")
 
-print("\n selesai \n")
+print("selesai")
