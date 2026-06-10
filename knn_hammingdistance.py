@@ -1,70 +1,45 @@
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score
+lama = [
+    [0, 1, 0, 0, 0],
+    [0, 1, 0, 0, 0],
+    [1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 1],
+    [1, 1, 1, 1, 2],
+    [1, 0, 1, 1, 2],
+]
 
-print("PREDIKSI RISIKO PUTUS SEKOLAH - KNN HAMMING")
+baru = [1, 0, 1, 1]
 
-df_mat = pd.read_csv("student-mat.csv", sep=';')
-df_por = pd.read_csv("student-por.csv", sep=';')
-df = pd.concat([df_mat, df_por], ignore_index=True)
+jarak = []
+for data in lama:
+    d = 0
+    for i in range(4):
+        if baru[i] != data[i]:
+            d = d + 1
+    jarak.append([d, data[4]])
 
-print(f"Data dimuat: {len(df)} siswa")
+jarak.sort()
 
-df['risiko'] = df['G3'].apply(
-    lambda x: "TINGGI" if x < 10 else ("SEDANG" if x < 15 else "RENDAH")
-)
+tetangga = jarak[:5]
 
-print(f"Risiko TINGGI: {(df['risiko'] == 'TINGGI').sum()}")
-print(f"Risiko SEDANG: {(df['risiko'] == 'SEDANG').sum()}")
-print(f"Risiko RENDAH: {(df['risiko'] == 'RENDAH').sum()}")
+label_0 = 0
+label_1 = 0
+label_2 = 0
 
-fitur = ['age', 'studytime', 'failures', 'absences', 'G1', 'G2']
-X = df[fitur]
-y = df['risiko']
+for d, label in tetangga:
+    if label == 0:
+        label_0 = label_0 + 1
+    elif label == 1:
+        label_1 = label_1 + 1
+    else:
+        label_2 = label_2 + 1
 
-print(f"Fitur: {X.shape[1]}")
+print("label 0:", label_0)
+print("label 1:", label_1)
+print("label 2:", label_2)
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-print(f"Training: {len(X_train)} | Testing: {len(X_test)}")
-
-# rumus menghitung Hamming
-def hamming_distance(a, b):
-    return sum(x != y for x, y in zip(a, b)) / len(a)
-
-def knn_hamming_predict(X_train, y_train, X_test, k=5):
-    prediksi = []
-    if hasattr(X_test, 'values'):
-        X_test = X_test.values
-    for test_point in X_test:
-        jarak = []
-        for train_point in X_train.values:
-            d = hamming_distance(test_point, train_point)
-            jarak.append(d)
-
-        tetangga = sorted(range(len(jarak)), key=lambda i: jarak[i])[:k]
-
-        label_tetangga = [y_train.iloc[i] for i in tetangga]
-
-        hasil = max(set(label_tetangga), key=label_tetangga.count)
-        prediksi.append(hasil)
-
-    return prediksi
-
-print("Model KNN (K=5) dilatih")
-
-prediksi = knn_hamming_predict(X_train, y_train, X_test, k=5)
-
-akurasi = accuracy_score(y_test, prediksi)
-print(f"Akurasi: {round(akurasi*100, 2)}%")
-
-semua = knn_hamming_predict(X_train, y_train, X, k=5)
-
-for risiko in ['TINGGI', 'SEDANG', 'RENDAH']:
-    jumlah = sum(1 for s in semua if s == risiko)
-    persen = round(jumlah / len(df) * 100, 1)
-    print(f"Risiko {risiko}: {jumlah} siswa ({persen}%)")
-
-print("selesai")
+if label_0 > label_1 and label_0 > label_2:
+    print("Hasil: 0")
+elif label_1 > label_0 and label_1 > label_2:
+    print("Hasil: 1")
+else:
+    print("Hasil: 2")
